@@ -1,0 +1,23 @@
+\documentclass[letterpaper]{article}
+\usepackage{aaai27}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\title{PHAROS Supplementary Material}
+\author{Anonymous Submission}
+\affiliations{}
+\begin{document}
+\maketitle
+
+\section{Proof of DBA Cost-Neutrality and Recall Intuition}
+Under exact allocation without rounding and without lower-bound correction, DBA assigns $k_h=k_{\mathrm{total}}w_h$ where $\sum_h w_h=1$. Therefore $\sum_h k_h=k_{\mathrm{total}}$. If recall as a function of selected tokens is concave and low-entropy heads saturate earlier than high-entropy heads, transferring budget from saturated heads to unsaturated heads does not reduce expected recall and may improve it when entropy heterogeneity is present.
+
+\section{Fog Gate Head Analysis Plan}
+A complete fog-gate analysis should report the distribution of fallback activation across heads after verified training runs. Until such runs are completed, the paper should not report quantitative fog-ratio or learned-threshold claims.
+
+\section{Complexity Derivation}
+The additional per-layer operations beyond Lighthouse-style hierarchical selection are: RCG upsampling and addition, TMS exponential moving average update, DBA entropy computation amortized across update intervals, and FCF confidence computation. These operations do not change the asymptotic order of the hierarchical attention selection framework.
+
+\end{document}

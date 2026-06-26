@@ -1,0 +1,95 @@
+% AAAI-27 anonymous submission source for PHAROS.
+% IMPORTANT: Upload this with the official AAAI-27 Author Kit files, especially aaai27.sty and aaai27.bst.
+% The OpenReview full-paper deadline is July 28, 2026; abstract deadline is July 21, 2026.
+
+\documentclass[letterpaper]{article}
+\usepackage{aaai27}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\urlstyle{rm}
+\def\UrlFont{\rm}
+\frenchspacing
+\setlength{\pdfpagewidth}{8.5in}
+\setlength{\pdfpageheight}{11in}
+\pdfinfo{
+/Title (PHAROS: Navigated Hierarchical Attention with Adaptive Budgets, Cross-Level Guidance, Tidal Momentum, and Uncertainty-Aware Fallback)
+/Author (Anonymous Submission)
+}
+\setcounter{secnumdepth}{1}
+
+\title{PHAROS: Navigated Hierarchical Attention with Adaptive Budgets, Cross-Level Guidance, Tidal Momentum, and Uncertainty-Aware Fallback}
+\author{Anonymous Submission}
+\affiliations{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Long-context transformer training remains constrained by the quadratic compute and memory cost of dense scaled dot-product attention. Lighthouse Attention reduces this cost through symmetric hierarchical pooling and gradient-free top-k token selection, but its selection process remains limited by uniform per-head budgets, independent pyramid-level scoring, and stateless selection across transformer depth. We present PHAROS, a composable augmentation of Lighthouse-style hierarchical attention that improves long-context token selection while preserving compatibility with efficient attention pipelines. PHAROS introduces four coordinated mechanisms: Depth-Sounding Budget Allocation, which assigns entropy-aware per-head selection budgets under a global budget constraint; Range Light Cross-Level Guidance, which injects coarse-level selection priors into finer pyramid levels; Tidal Momentum Selection, which propagates selection evidence across transformer layers; and Fog Gate Confidence Fallback, which widens the attention beam under low-confidence selection. Together, these mechanisms define an adaptive, guided, persistent, and uncertainty-aware framework for hierarchical attention. PHAROS is designed as a thin wrapper over existing hierarchical selection interfaces without requiring changes to the attention kernel or the two-stage training recipe.
+\end{abstract}
+
+\section{Introduction}
+Scaling language model context from tens of thousands to million-token ranges remains primarily bottlenecked by the quadratic compute and memory cost of dense scaled dot-product attention (SDPA). Efficient attention methods reduce this burden by selecting, pooling, routing, or approximating the context processed by each attention head. Lighthouse Attention introduced a training-time hierarchical alternative: pooled query, key, and value pyramids are scored with a simple gradient-free selector, the top-k pooled tokens are gathered, and standard FlashAttention is applied to the resulting dense subsequence.
+
+Despite these gains, Lighthouse-style selection contains three structural rigidities. First, the same top-k budget is used for every head, even though heads differ in entropy and focus width. Second, pyramid levels are scored independently, even though coarse levels provide useful global priors. Third, selection is recomputed independently across transformer depth, even though important tokens often recur across layers. PHAROS addresses these limitations while preserving the original design goal: remain a thin wrapper over efficient attention pipelines rather than modifying the attention kernel.
+
+PHAROS contributes four mechanisms: Depth-Sounding Budget Allocation (DBA), Range Light Cross-Level Guidance (RCG), Tidal Momentum Selection (TMS), and Fog Gate Confidence Fallback (FCF). Together these define an adaptive, guided, persistent, and uncertainty-aware hierarchical selection framework for long-context transformers.
+
+\section{Background: Lighthouse Attention}
+Let a sequence have length $N$ and each attention head have hidden dimension $d$. For head $h$, denote queries, keys, and values as $Q_h,K_h,V_h \in \mathbb{R}^{N\times d}$. Lighthouse-style hierarchical attention constructs an $L$-level pyramid by average pooling along the sequence dimension:
+\[
+\bar{X}^{(\ell)}_h = \mathrm{AvgPool}_{p_\ell}(X_h), \quad X\in\{Q,K,V\}.
+\]
+A scorer computes logits over pooled tokens. A fixed top-k operation then selects pooled indices, gathers the corresponding key/value subsequence, and applies FlashAttention to the gathered dense subsequence. This preserves compatibility with efficient attention kernels, but the selection policy itself remains uniform, independent across levels, and stateless across layers.
+
+\section{PHAROS: Four Coordinated Mechanisms}
+\textbf{Depth-Sounding Budget Allocation.} DBA assigns per-head token budgets according to selection entropy while preserving a global budget. Let $p_{h,t}=\mathrm{softmax}(s_{h,t})$ and let $\hat H_h$ be the average entropy of head $h$. DBA computes normalized inverse-entropy weights
+\[
+w_h = \frac{\exp(-\hat H_h/\tau)}{\sum_{h'}\exp(-\hat H_{h'}/\tau)},
+\]
+and assigns $k_h = \max(k_{\min}, \mathrm{round}(k_{\mathrm{total}}w_h))$. Low-entropy heads can use smaller budgets, while diffuse heads receive more capacity.
+
+\textbf{Range Light Cross-Level Guidance.} RCG injects coarse pyramid priors into finer levels. Coarse logits are upsampled and added as a learned bias:
+\[
+\tilde{s}^{(\ell)}_h=s^{(\ell)}_h+\gamma^\ell_h\mathrm{Upsample}(\tilde{s}^{(\ell+1)}_h).
+\]
+A zero initialization recovers the baseline at the start of training.
+
+\textbf{Tidal Momentum Selection.} TMS maintains a lightweight exponential moving average of selection logits across transformer depth:
+\[
+\tilde{s}^{(\ell)}_h=s^{(\ell)}_h+\beta_h m^{(\ell-1)}_h, \quad m^{(\ell)}_h=\rho m^{(\ell-1)}_h+(1-\rho)\tilde{s}^{(\ell)}_h.
+\]
+This propagates selection evidence without adding a recurrent hidden state or changing the attention kernel.
+
+\textbf{Fog Gate Confidence Fallback.} FCF widens the selected beam only when selector confidence is low. With confidence $c_{h,t}=\max_j\mathrm{softmax}(s_{h,t})_j$, fallback is triggered if $c_{h,t}<\theta_h$, and the local budget expands from $k_h$ to $\min(2k_h,P)$.
+
+\section{Algorithmic Composition}
+PHAROS composes the four mechanisms in a fixed order. First, pooled pyramids are constructed for each head. Second, pooled scores are computed. Third, RCG propagates coarse priors to finer levels. Fourth, logits are concatenated and TMS adds the previous-layer tidal prior. Fifth, DBA assigns the current per-head budget. Sixth, FCF adjusts the beam under low confidence. Finally, selected keys and values are gathered and passed into FlashAttention. The method introduces only small per-head scalar parameters for guidance, momentum, and fallback.
+
+\section{Theoretical Properties}
+DBA is cost-neutral under exact allocation without rounding or lower-bound correction: the sum of per-head budgets equals the global budget. Intuitively, entropy-aware reallocation can improve expected recall when some heads saturate early while others benefit from additional selected tokens. TMS reduces layer-to-layer selection fluctuation under bounded logit variance because the exponential moving average smooths selection evidence across depth. FCF increases computation only for low-confidence positions, so expected cost remains close to the baseline when fog activation is rare.
+
+\section{Evaluation Protocol}
+This submission reports no unsupported quantitative claims. PHAROS should be evaluated using the same architecture family, tokenizer, dataset mixture, and training recipe as the Lighthouse baseline. Recommended baselines include dense SDPA, Lighthouse with the norm scorer, Lighthouse with the dilated scorer, and PHAROS with individual mechanisms ablated. Metrics should include training loss, resume loss, validation perplexity, long-context retrieval accuracy, throughput, memory usage, and wall-clock latency. The ablation study should isolate DBA, RCG, TMS, and FCF while holding all other training choices fixed.
+
+\section{Related Work}
+Sparse attention methods route attention over subsets of tokens, blocks, or learned patterns. Adaptive computation methods allocate compute across positions, layers, or submodules. Cross-layer state methods propagate information across sequence or depth. PHAROS is complementary to these directions: it targets training-time hierarchical selection, preserves dense-kernel compatibility, and augments selection with adaptive budgets, cross-level guidance, persistence, and fallback.
+
+\section{Limitations}
+The main limitation is the absence of verified quantitative experiments in the current draft. PHAROS is therefore presented as a method and reproducible evaluation plan, not as an empirically validated improvement. Future work must validate PHAROS across model scales, context lengths, tokenizers, and datasets, and must report variance across runs. The theoretical analysis also relies on assumptions about entropy, recall curvature, and cross-layer selection stability that should be tested empirically.
+
+\section{Conclusion}
+PHAROS is a four-mechanism augmentation of Lighthouse-style hierarchical attention. DBA adapts budgets across heads, RCG propagates coarse selection priors, TMS maintains cross-layer selection evidence, and FCF widens selection under uncertainty. Together, these mechanisms provide an adaptive, guided, persistent, and uncertainty-aware framework for long-context hierarchical attention while preserving compatibility with efficient attention pipelines.
+
+
+
+\bibliography{references}
+\end{document}

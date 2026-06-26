@@ -1,0 +1,16 @@
+Title:
+PHAROS: Navigated Hierarchical Attention with Adaptive Budgets, Cross-Level Guidance, Tidal Momentum, and Uncertainty-Aware Fallback
+
+Abstract:
+Long-context transformer training remains constrained by the quadratic compute and memory cost of dense scaled dot-product attention. Lighthouse Attention reduces this cost through symmetric hierarchical pooling and gradient-free top-k token selection, but its selection process remains limited by uniform per-head budgets, independent pyramid-level scoring, and stateless selection across transformer depth. We present PHAROS, a composable augmentation of Lighthouse-style hierarchical attention that improves long-context token selection while preserving compatibility with efficient attention pipelines. PHAROS introduces four coordinated mechanisms: Depth-Sounding Budget Allocation, which assigns entropy-aware per-head selection budgets under a global budget constraint; Range Light Cross-Level Guidance, which injects coarse-level selection priors into finer pyramid levels; Tidal Momentum Selection, which propagates selection evidence across transformer layers; and Fog Gate Confidence Fallback, which widens the attention beam under low-confidence selection. Together, these mechanisms define an adaptive, guided, persistent, and uncertainty-aware framework for hierarchical attention. PHAROS is designed as a thin wrapper over existing hierarchical selection interfaces without requiring changes to the attention kernel or the two-stage training recipe.
+
+Keywords:
+long-context transformers; efficient attention; sparse attention; hierarchical attention; transformer architectures; adaptive computation; uncertainty-aware selection
+
+Recommended AAAI track:
+Main Technical Track
+
+Notes:
+- Abstract is copy-paste ready for OpenReview registration.
+- Full paper PDF must be anonymous.
+- Supplementary material and code are due three days after the full paper deadline according to the AAAI-27 timetable.
