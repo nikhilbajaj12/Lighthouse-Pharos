@@ -96,7 +96,7 @@ propcache==0.4.1
 protobuf==6.33.6
 psutil==7.2.2
 pyarrow==23.0.1
-pydantic==2.12.5
+pydantic>=2.11.7
 pydantic_core==2.41.5
 Pygments==2.19.2
 pyparsing==3.3.2
@@ -136,3 +136,8 @@ Werkzeug==3.1.6
 xxhash==3.6.0
 yarl==1.23.0
 z3-solver==4.15.4.0
+llama-index>=0.12.30
+langchain>=0.3.36
+langgraph>=0.4.20
+transformers>=4.51.4
+
